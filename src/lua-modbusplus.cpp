@@ -327,8 +327,12 @@ int lua_mbdevice_read_bits(lua_State* L) {
 		return luaL_error(L, "Number of bits to read must be positive");
 	}
 
-	// Allocate buffer for bits
+// Allocate buffer for bits
+#ifdef MODBUSPLUS_COMPAT_READ_REG_8BIT
 	std::vector<uint8_t> buffer(nb / 8 + (nb % 8 ? 1 : 0), 0);
+#else
+	std::vector<uint8_t> buffer(nb, 0);
+#endif
 
 	unsigned int rc;
 	try {
@@ -337,10 +341,9 @@ int lua_mbdevice_read_bits(lua_State* L) {
 		return luaL_error(L, "Failed to read bits: %s", ex.what());
 	}
 
-	printf("DEBUG: Read %u bytes (rc)\n", rc);
-
 	// Push results as a table of booleans
 	lua_newtable(L);
+#ifdef MODBUSPLUS_COMPAT_READ_REG_8BIT
 	for (int i = 0; i < static_cast<int>(nb); ++i) {
 		int byteIndex = i / 8;
 		int bitIndex = 7 - i % 8;  // MSB first
@@ -348,6 +351,12 @@ int lua_mbdevice_read_bits(lua_State* L) {
 		lua_pushboolean(L, bit);
 		lua_rawseti(L, -2, i + 1);
 	}
+#else
+	for (int i = 0; i < static_cast<int>(nb); ++i) {
+		lua_pushboolean(L, buffer[i]);
+		lua_rawseti(L, -2, i + 1);
+	}
+#endif
 
 	STACK_END(lua_mbdevice_read_bits, 1);
 
@@ -369,7 +378,11 @@ int lua_mbdevice_read_input_bits(lua_State* L) {
 	}
 
 	// Allocate buffer for bits
+#ifdef MODBUSPLUS_COMPAT_READ_REG_8BIT
 	std::vector<uint8_t> buffer(nb / 8 + (nb % 8 ? 1 : 0), 0);
+#else
+	std::vector<uint8_t> buffer(nb, 0);
+#endif
 
 	unsigned int rc;
 	try {
@@ -378,10 +391,9 @@ int lua_mbdevice_read_input_bits(lua_State* L) {
 		return luaL_error(L, "Failed to read input bits: %s", ex.what());
 	}
 
-	printf("DEBUG: Read %u bytes (rc)\n", rc);
-
 	// Push results as a table of booleans
 	lua_newtable(L);
+#ifdef MODBUSPLUS_COMPAT_READ_REG_8BIT
 	for (int i = 0; i < static_cast<int>(nb); ++i) {
 		int byteIndex = i / 8;
 		int bitIndex = 7 - i % 8;  // MSB first
@@ -389,6 +401,12 @@ int lua_mbdevice_read_input_bits(lua_State* L) {
 		lua_pushboolean(L, bit);
 		lua_rawseti(L, -2, i + 1);
 	}
+#else
+	for (int i = 0; i < static_cast<int>(nb); ++i) {
+		lua_pushboolean(L, buffer[i]);
+		lua_rawseti(L, -2, i + 1);
+	}
+#endif
 
 	STACK_END(lua_mbdevice_read_input_bits, 1);
 
@@ -418,8 +436,6 @@ int lua_mbdevice_read_registers(lua_State* L) {
 	} catch (const std::exception& ex) {
 		return luaL_error(L, "Failed to read registers: %s", ex.what());
 	}
-
-	printf("DEBUG: Read %u bytes (rc)\n", rc);
 
 	// Push results as a table of integers
 	lua_newtable(L);
@@ -457,8 +473,6 @@ int lua_mbdevice_read_input_registers(lua_State* L) {
 	} catch (const std::exception& ex) {
 		return luaL_error(L, "Failed to read input registers: %s", ex.what());
 	}
-
-	printf("DEBUG: Read %u bytes (rc)\n", rc);
 
 	// Push results as a table of integers
 	lua_newtable(L);
