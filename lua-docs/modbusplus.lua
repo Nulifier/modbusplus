@@ -81,15 +81,11 @@ function ModbusDevice:raw_write_register(addr, value) end
 --- @return nil
 function ModbusDevice:raw_write_registers(addr, values) end
 
---- @alias ModbusDevice.Format "bit" | "u16" | "i16" | "u32" | "i32" | "u64" | "i64" | "f32" | "f64"
---- @alias ModbusDevice.Mapping { addr: integer, format: ModbusDevice.Format, type?: "input" | "hold", scale?: number }
---- @alias ModbusDevice.StrMapping { addr: integer, format: "str" | "str_ab" | "str_ba" | "str_a" | "str_b", length: integer, type?: "input" | "hold", trim?: boolean }
-
 --- Creates a new context for high-level operations based on the provided configuration.
---- @param slave integer Slave ID for the context.
---- @param mapping (ModbusDevice.Mapping | ModbusDevice.StrMapping)[] Array of mapping configurations.
+--- @param device_id integer Device ID for the context.
+--- @param mapping_path string Path to the mapping file for this context.
 --- @return ModbusDeviceContext
-function ModbusDevice:newContext(slave, mapping) end
+function ModbusDevice:newContext(device_id, mapping_path) end
 
 --- @class ModbusDeviceContext
 local ModbusDeviceContext = {}
