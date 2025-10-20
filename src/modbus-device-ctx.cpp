@@ -175,68 +175,73 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 						"mapping: " +
 						name);
 			}
-			
+
 			// Convert to float
 			float value;
 			memcpy(&value, &value_raw, sizeof(float));
 
 			// Handle scale if not 1.0
 			if (def.scale != 1.0) {
-				value = static_cast<float>(static_cast<double>(value) *
-											 def.scale);
+				value =
+					static_cast<float>(static_cast<double>(value) * def.scale);
 			}
 
 			lua_pushnumber(L, static_cast<lua_Number>(value));
 			return;
-	}
-	case Mapping::ValueDefFormat::f64: {
-		// Read four registers
-		uint64_t value_raw = (static_cast<uint64_t>(regsBuffer[0]) << 48) |
-							 (static_cast<uint64_t>(regsBuffer[1]) << 32) |
-							 (static_cast<uint64_t>(regsBuffer[2]) << 16) |
-							 static_cast<uint64_t>(regsBuffer[3]);
-
-		// Handle byte order if needed
-		switch (def.order) {
-			case Mapping::ValueDefOrder::abcdefgh:
-				// No change needed
-				break;
-			default:
-				throw std::runtime_error(
-					"Unsupported byte order for f64 in luaRead for "
-					"mapping: " +
-					name);
 		}
+		case Mapping::ValueDefFormat::f64: {
+			// Read four registers
+			uint64_t value_raw = (static_cast<uint64_t>(regsBuffer[0]) << 48) |
+								 (static_cast<uint64_t>(regsBuffer[1]) << 32) |
+								 (static_cast<uint64_t>(regsBuffer[2]) << 16) |
+								 static_cast<uint64_t>(regsBuffer[3]);
 
-		// Handle scale if not 1.0
-		double value;
-		memcpy(&value, &value_raw, sizeof(double));
-		if (def.scale != 1.0) {
-			value = value * def.scale;
+			// Handle byte order if needed
+			switch (def.order) {
+				case Mapping::ValueDefOrder::abcdefgh:
+					// No change needed
+					break;
+				default:
+					throw std::runtime_error(
+						"Unsupported byte order for f64 in luaRead for "
+						"mapping: " +
+						name);
+			}
+
+			// Handle scale if not 1.0
+			double value;
+			memcpy(&value, &value_raw, sizeof(double));
+			if (def.scale != 1.0) {
+				value = value * def.scale;
+			}
+
+			lua_pushnumber(L, static_cast<lua_Number>(value));
+			return;
 		}
-
-		lua_pushnumber(L, static_cast<lua_Number>(value));
-		return;
+		case Mapping::ValueDefFormat::str: {
+			// Not implemented yet
+			throw std::runtime_error(
+				"String format not implemented yet in luaRead for mapping: " +
+				name);
+		}
+		case Mapping::ValueDefFormat::bitfield: {
+			const auto& bitfieldDef = m_mapping->getBitfieldDef(def.linked);
+			// Loop through values in the def
+			lua_newtable(L);
+			for (const auto& [bitPos, bitName] : bitfieldDef) {
+				uint16_t regIndex = bitPos / 16;
+				uint16_t bitInReg = bitPos % 16;
+				uint16_t regValue = regsBuffer[regIndex];
+				bool bitSet = (regValue & (1u << bitInReg)) != 0;
+				lua_pushboolean(L, bitSet);
+				lua_setfield(L, -2, bitName.c_str());
+			}
+			return;
+		}
+		default:
+			throw std::runtime_error(
+				"Unsupported format in luaRead for mapping: " + name);
 	}
-	case Mapping::ValueDefFormat::str: {
-		// Not implemented yet
-		throw std::runtime_error(
-			"String format not implemented yet in luaRead for mapping: " +
-			name);
-	}
-	case Mapping::ValueDefFormat::bitfield: {
-		// Not implemented yet
-		throw std::runtime_error(
-			"Bitfield format not implemented yet in luaRead for mapping: " +
-			name);
-	}
-	default:
-		throw std::runtime_error("Unsupported format in luaRead for mapping: " +
-								 name);
-}
-
-// Just output 123 for now
-lua_pushinteger(L, 123);
 }
 
 void ModbusDeviceContext::luaWrite(lua_State* L, const char* name) {

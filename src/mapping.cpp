@@ -165,9 +165,13 @@ Mapping::Mapping(const char* path) {
 			def.length = 4;
 		}
 
-		def.linked = item.value().value("linked", "");
-		if ((!def.linked.empty()) && (def.format == ValueDefFormat::bit ||
-									  def.format == ValueDefFormat::str)) {
+		if (def.format == ValueDefFormat::bitfield) {
+			def.linked = item.value().value("bitfield", "");
+		} else if (def.format != ValueDefFormat::str && 
+				   def.format != ValueDefFormat::bit) {
+			def.linked = item.value().value("enum", "");
+		} else if (item.value().contains("enum") ||
+				   item.value().contains("bitfield")) {
 			throw std::runtime_error(
 				"Linking not applicable for format in key: " + item.key());
 		}
