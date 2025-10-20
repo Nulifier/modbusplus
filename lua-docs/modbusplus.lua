@@ -85,7 +85,7 @@ function ModbusDevice:raw_write_registers(addr, values) end
 --- @param device_id integer Device ID for the context.
 --- @param mapping_path string Path to the mapping file for this context.
 --- @return ModbusDeviceContext
-function ModbusDevice:newContext(device_id, mapping_path) end
+function ModbusDevice:new_context(device_id, mapping_path) end
 
 --- @class ModbusDeviceContext
 local ModbusDeviceContext = {}

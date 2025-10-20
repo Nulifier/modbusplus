@@ -5,6 +5,7 @@
 #include "lua-modbusplus-private.hpp"
 #include "modbus-device-ctx.hpp"
 #include "modbus-device.hpp"
+#include "mapping-registry.hpp"
 
 static const char* MODBUS_DEVICE_METATABLE = "modbusplus.device";
 static const char* MODBUS_DEVICE_CTX_METATABLE = "modbusplus.device.ctx";
@@ -57,10 +58,13 @@ luaL_reg device_methods[] = {
 	{"raw_write_bits", lua_mbdevice_write_bits},
 	{"raw_write_register", lua_mbdevice_write_register},
 	{"raw_write_registers", lua_mbdevice_write_registers},
+	{"new_context", lua_mbdevice_new_ctx},
 	{NULL, NULL} /* sentinel */
 };
 luaL_reg device_ctx_methods[] = {
 	{"__gc", lua_mbdevicectx_gc},
+	{"read", lua_mbdevicectx_read},
+	{"write", lua_mbdevicectx_write},
 	{NULL, NULL} /* sentinel */
 };
 
@@ -617,81 +621,22 @@ int lua_mbdevice_write_registers(lua_State* L) {
 	return 1;  // Return number of registers written
 }
 
-ModbusDeviceContext::Format parseMappingFormat(lua_State* L,
-											   const std::string& fmt) {
-	if (fmt == "bit") {
-		return ModbusDeviceContext::Format::bit;
-	} else if (fmt == "u16") {
-		return ModbusDeviceContext::Format::u16;
-	} else if (fmt == "i16") {
-		return ModbusDeviceContext::Format::i16;
-	} else if (fmt == "u32") {
-		return ModbusDeviceContext::Format::u32;
-	} else if (fmt == "i32") {
-		return ModbusDeviceContext::Format::i32;
-	} else if (fmt == "u64") {
-		return ModbusDeviceContext::Format::u64;
-	} else if (fmt == "i64") {
-		return ModbusDeviceContext::Format::i64;
-	} else if (fmt == "f32") {
-		return ModbusDeviceContext::Format::f32;
-	} else if (fmt == "f64") {
-		return ModbusDeviceContext::Format::f64;
-	} else {
-		return luaL_error(L, "Invalid mapping format: %s", fmt.c_str()),
-			   ModbusDeviceContext::Format::bit;  // Unreachable, but avoids
-												  // compiler warning
-	}
-}
-
 int lua_mbdevice_new_ctx(lua_State* L) {
 	STACK_START(lua_mbdevice_new_ctx, 1);
 
 	auto ptr = getModbusDevice(L, 1);
-	int slave = luaL_checkinteger(L, 2);
-	luaL_checktype(L, 3, LUA_TTABLE);
+	int device_id = luaL_checkinteger(L, 2);
+	const char* mappingPath = luaL_checkstring(L, 3);
 
-	// Read mapping configurations from the table
-	std::unordered_map<std::string, ModbusDeviceContext::Mapping> mappings;
-	lua_pushnil(L);	 // first key
-	while (lua_next(L, 3) != 0) {
-		// STACK: device, slave, mapping_table, key, value
-		if (lua_type(L, -2) != LUA_TSTRING) {
-			return luaL_error(L, "Mapping name must be a string");
-		}
-		const char* name = lua_tostring(L, -2);
-		if (lua_type(L, -1) != LUA_TTABLE) {
-			return luaL_error(L, "Mapping configuration must be a table");
-		}
-
-		ModbusDeviceContext::Mapping mapping;
-		lua_getfield(L, -1, "addr");
-		mapping.addr = luaL_checkinteger(L, -1);
-		lua_getfield(L, -2, "format");
-		mapping.format = parseMappingFormat(L, luaL_checkstring(L, -1));
-		lua_getfield(L, -3, "type");
-		if (lua_isnil(L, -1)) {
-			mapping.isInput = false;  // default
-		} else {
-			mapping.isInput = (std::string(luaL_checkstring(L, -1)) == "input");
-		}
-		lua_getfield(L, -4, "scale");
-		if (lua_isnil(L, -1)) {
-			mapping.scale = 1.0;  // default
-		} else {
-			mapping.scale = luaL_checknumber(L, -1);
-		}
-		lua_pop(L, 4);	// pop addr, format, type, scale
-
-		mappings[name] = mapping;
-		lua_pop(L, 1);	// pop value
-	}
-
-	// STACK: device, slave, mapping_table
+	// STACK: device, device_id, mapping_path
 	lua_pop(L, 1);
 
+	// Load mappings from the registry
+	printf("DEBUG: Loading mapping from path: %s\n", mappingPath);
+	auto mapping = MappingRegistry::instance().getMapping(mappingPath);
+
 	// Create ModbusDeviceContext instance
-	auto ctx = std::make_shared<ModbusDeviceContext>(ptr, std::move(mappings));
+	auto ctx = std::make_shared<ModbusDeviceContext>(ptr, std::move(mapping));
 
 	// Allocate userdata
 	void* udata =
@@ -753,14 +698,16 @@ int lua_mbdevicectx_write(lua_State* L) {
 	// Value is at index 3
 
 	// STACK: ctx, name, value
-	lua_pop(L, 3);
 
 	try {
-		ctx->luaWrite(L, name, 3);
+		ctx->luaWrite(L, name);
 	} catch (const std::exception& ex) {
 		return luaL_error(L, "Failed to write mapping '%s': %s", name,
 						  ex.what());
 	}
+
+	// STACK: ctx, name
+	lua_pop(L, 2);
 
 	STACK_END(lua_mbdevicectx_write, 0);
 

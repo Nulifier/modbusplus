@@ -43,6 +43,9 @@ set(INCLUDES
 	src/modbus-device.hpp
 	src/value-utils.hpp
 	src/modbus-device-ctx.hpp
+	src/mapping-registry.hpp
+	src/mapping.hpp
+	src/nlohmann/json.hpp
 )
 
 set(SOURCES
@@ -50,6 +53,8 @@ set(SOURCES
 	src/modbus-device.cpp
 	src/value-utils.cpp
 	src/modbus-device-ctx.cpp
+	src/mapping-registry.cpp
+	src/mapping.cpp
 )
 
 configure_file(
