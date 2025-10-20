@@ -154,7 +154,7 @@ Mapping::Mapping(const char* path) {
 					"Length not applicable for format in key: " + item.key());
 			}
 		}
-		def.length = item.value().value("length", 1);
+		def.length = item.value().value("len", 1);
 		if (def.format == ValueDefFormat::u32 ||
 			def.format == ValueDefFormat::i32 ||
 			def.format == ValueDefFormat::f32) {

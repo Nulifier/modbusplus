@@ -219,10 +219,53 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 			return;
 		}
 		case Mapping::ValueDefFormat::str: {
-			// Not implemented yet
-			throw std::runtime_error(
-				"String format not implemented yet in luaRead for mapping: " +
-				name);
+			// Strings depend heavily on length and order
+			std::string strValue;
+			strValue.resize(def.length * 2, '\0');
+
+			switch (def.order) {
+				case Mapping::ValueDefOrder::ab:
+					printf("DEBUG: Reading string with ab order and length %d\n", def.length);
+					for (size_t i = 0; i < def.length; ++i) {
+						strValue[i * 2] = static_cast<char>(regsBuffer[i] >> 8);
+						strValue[i * 2 + 1] =
+							static_cast<char>(regsBuffer[i] & 0x00FF);
+					}
+					break;
+				case Mapping::ValueDefOrder::ba:
+					for (size_t i = 0; i < def.length; ++i) {
+						strValue[i * 2 + 1] =
+							static_cast<char>(regsBuffer[i] >> 8);
+						strValue[i * 2] =
+							static_cast<char>(regsBuffer[i] & 0x00FF);
+					}
+					break;
+				case Mapping::ValueDefOrder::a:
+					for (size_t i = 0; i < def.length; ++i) {
+						strValue[i] = static_cast<char>(regsBuffer[i] >> 8);
+					}
+					break;
+				case Mapping::ValueDefOrder::b:
+					for (size_t i = 0; i < def.length; ++i) {
+						strValue[i] = static_cast<char>(regsBuffer[i] & 0x00FF);
+					}
+					break;
+				default:
+					throw std::runtime_error(
+						"Unsupported byte order for str in luaRead for "
+						"mapping: " +
+						name);
+			}
+
+			// Trim any trailing null characters
+			size_t endPos = strValue.find('\0');
+			if (endPos != std::string::npos) {
+				strValue.resize(endPos);
+			}
+			
+			lua_pushlstring(L, strValue.c_str(), strValue.size());
+
+			return;
 		}
 		case Mapping::ValueDefFormat::bitfield: {
 			const auto& bitfieldDef = m_mapping->getBitfieldDef(def.linked);
