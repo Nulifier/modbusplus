@@ -12,7 +12,19 @@ class ModbusDeviceContext {
    public:
 	ModbusDeviceContext(
 		std::shared_ptr<ModbusDevice> device,
-		std::shared_ptr<Mapping>&& mapping);
+		std::shared_ptr<Mapping>&& mapping, int deviceId = -1) noexcept;
+
+	ModbusDevice& getDevice() const noexcept {
+		return *m_device;
+	}
+
+	/**
+	 * Gets the device ID for the context.
+	 * @return The device ID.
+	 */
+	int getDeviceId() const noexcept {
+		return m_deviceId;
+	}
 
 	/**
 	 * Pushes the value of the given mapping onto the Lua stack.
@@ -32,6 +44,8 @@ class ModbusDeviceContext {
 	void luaWrite(lua_State* L, const char* name);
 
    private:
+	int m_deviceId = 0;
+
 	std::shared_ptr<ModbusDevice> m_device;
 	std::shared_ptr<Mapping> m_mapping;
 };

@@ -25,6 +25,8 @@ static int lua_mbdevice_new_ctx(lua_State* L);
 
 // ModbusDeviceContext methods
 static int lua_mbdevicectx_gc(lua_State* L);
+static int lua_mbdevicectx_connect(lua_State* L);
+static int lua_mbdevicectx_close(lua_State* L);
 static int lua_mbdevicectx_read(lua_State* L);
 static int lua_mbdevicectx_write(lua_State* L);
 

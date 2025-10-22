@@ -22,6 +22,10 @@ class ModbusDevice {
 
 	void setSlave(int slave);
 
+	bool isConnected() const noexcept {
+		return m_connected;
+	}
+
 	/**
 	 * Read bits (coils) from the Modbus device.
 	 * @param addr The starting address to read from.
@@ -99,6 +103,7 @@ class ModbusDevice {
    protected:
 	ModbusDevice(modbus_t* ctx);
 
+	bool m_connected = false;
 	modbus_t* m_ctx;
 };
 

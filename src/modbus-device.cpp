@@ -20,9 +20,11 @@ void ModbusDevice::connect() {
 	if (modbus_connect(m_ctx) == -1) {
 		throw std::runtime_error(modbus_strerror(errno));
 	}
+	m_connected = true;
 }
 
 void ModbusDevice::close() noexcept {
+	m_connected = false;
 	if (m_ctx) {
 		modbus_close(m_ctx);
 	}

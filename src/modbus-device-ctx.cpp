@@ -4,8 +4,11 @@
 #include <vector>
 
 ModbusDeviceContext::ModbusDeviceContext(std::shared_ptr<ModbusDevice> device,
-										 std::shared_ptr<Mapping>&& mapping)
-	: m_device(std::move(device)), m_mapping(std::move(mapping)) {}
+										 std::shared_ptr<Mapping>&& mapping,
+										 int deviceId) noexcept
+	: m_deviceId(deviceId),
+	  m_device(std::move(device)),
+	  m_mapping(std::move(mapping)) {}
 
 void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 	// Get mapping
@@ -225,7 +228,9 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 
 			switch (def.order) {
 				case Mapping::ValueDefOrder::ab:
-					printf("DEBUG: Reading string with ab order and length %d\n", def.length);
+					printf(
+						"DEBUG: Reading string with ab order and length %d\n",
+						def.length);
 					for (size_t i = 0; i < def.length; ++i) {
 						strValue[i * 2] = static_cast<char>(regsBuffer[i] >> 8);
 						strValue[i * 2 + 1] =
@@ -262,7 +267,7 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 			if (endPos != std::string::npos) {
 				strValue.resize(endPos);
 			}
-			
+
 			lua_pushlstring(L, strValue.c_str(), strValue.size());
 
 			return;

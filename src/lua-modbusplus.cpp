@@ -625,8 +625,8 @@ int lua_mbdevice_new_ctx(lua_State* L) {
 	STACK_START(lua_mbdevice_new_ctx, 1);
 
 	auto ptr = getModbusDevice(L, 1);
-	int device_id = luaL_checkinteger(L, 2);
-	const char* mappingPath = luaL_checkstring(L, 3);
+	const char* mappingPath = luaL_checkstring(L, 2);
+	int device_id = luaL_optinteger(L, 3, -1);
 
 	// STACK: device, device_id, mapping_path
 	lua_pop(L, 1);
@@ -636,7 +636,7 @@ int lua_mbdevice_new_ctx(lua_State* L) {
 	auto mapping = MappingRegistry::instance().getMapping(mappingPath);
 
 	// Create ModbusDeviceContext instance
-	auto ctx = std::make_shared<ModbusDeviceContext>(ptr, std::move(mapping));
+	auto ctx = std::make_shared<ModbusDeviceContext>(ptr, std::move(mapping), device_id);
 
 	// Allocate userdata
 	void* udata =
@@ -665,6 +665,53 @@ int lua_mbdevicectx_gc(lua_State* L) {
 	lua_pop(L, 1);
 
 	STACK_END(lua_mbdevicectx_gc, 0);
+
+	return 0;
+}
+
+int lua_mbdevicectx_connect(lua_State* L) {
+	STACK_START(lua_mbdevicectx_connect, 0);
+
+	auto ctx = getModbusDeviceCtx(L, 1);
+
+	// STACK: ctx
+	lua_pop(L, 1);
+
+	// Ensure device is not already connected
+	if (ctx->getDevice().isConnected()) {
+		return luaL_error(L, "Modbus device is already connected");
+	}
+
+	try {
+		if (ctx->getDeviceId() >= 0) {
+			ctx->getDevice().setSlave(ctx->getDeviceId());
+		}
+		ctx->getDevice().connect();
+	} catch (const std::exception& ex) {
+		return luaL_error(L, "Failed to connect: %s", ex.what());
+	}
+
+	STACK_END(lua_mbdevicectx_connect, 0);
+
+	return 0;
+}
+
+int lua_mbdevicectx_close(lua_State* L) {
+	STACK_START(lua_mbdevicectx_close, 0);
+
+	auto ctx = getModbusDeviceCtx(L, 1);
+
+	// STACK: ctx
+	lua_pop(L, 1);
+
+	// Ensure device is connected
+	if (!ctx->getDevice().isConnected()) {
+		return luaL_error(L, "Modbus device is not connected");
+	}
+
+	ctx->getDevice().close();
+
+	STACK_END(lua_mbdevicectx_close, 0);
 
 	return 0;
 }

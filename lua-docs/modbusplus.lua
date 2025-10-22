@@ -82,13 +82,21 @@ function ModbusDevice:raw_write_register(addr, value) end
 function ModbusDevice:raw_write_registers(addr, values) end
 
 --- Creates a new context for high-level operations based on the provided configuration.
---- @param device_id integer Device ID for the context.
 --- @param mapping_path string Path to the mapping file for this context.
+--- @param device_id integer? Device ID for the context.
 --- @return ModbusDeviceContext
-function ModbusDevice:new_context(device_id, mapping_path) end
+function ModbusDevice:new_context(mapping_path, device_id) end
 
 --- @class ModbusDeviceContext
 local ModbusDeviceContext = {}
+
+--- Connects to the Modbus device context.
+--- @return nil
+function ModbusDeviceContext:connect() end
+
+--- Closes the Modbus device context.
+--- @return nil
+function ModbusDeviceContext:close() end
 
 --- Reads the value associated with the given name from the context.
 --- @param name string Name of the variable to read.
