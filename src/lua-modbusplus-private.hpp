@@ -3,6 +3,8 @@
 #include <lua.hpp>
 #include "modbusplus-config.hpp"
 
+static void lua_push_error_func(lua_State* L);
+
 // Library functions
 static int lua_mbdevice_newRtu(lua_State* L);
 static int lua_mbdevice_newTcp(lua_State* L);
@@ -29,6 +31,7 @@ static int lua_mbdevicectx_connect(lua_State* L);
 static int lua_mbdevicectx_close(lua_State* L);
 static int lua_mbdevicectx_read(lua_State* L);
 static int lua_mbdevicectx_write(lua_State* L);
+static int lua_mbdevicectx_tx(lua_State* L);
 
 #ifdef LIBMODBUSPLUS_STACK_CHECK
 #define STACK_START(fn_name, nargs)                             \

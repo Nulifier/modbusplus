@@ -3,12 +3,23 @@
 #include <vector>
 #include "lauxlib.h"
 #include "lua-modbusplus-private.hpp"
+#include "mapping-registry.hpp"
 #include "modbus-device-ctx.hpp"
 #include "modbus-device.hpp"
-#include "mapping-registry.hpp"
 
 static const char* MODBUS_DEVICE_METATABLE = "modbusplus.device";
 static const char* MODBUS_DEVICE_CTX_METATABLE = "modbusplus.device.ctx";
+
+void lua_push_error_func(lua_State* L) {
+	STACK_START(lua_push_error_func, 0);
+
+	// Push debug.traceback function
+	lua_getglobal(L, "debug");
+	lua_getfield(L, -1, "traceback");
+	lua_remove(L, -2);	// Remove 'debug' table, leaving only the function
+
+	STACK_END(lua_push_error_func, 1);
+}
 
 std::shared_ptr<ModbusDevice> getModbusDevice(lua_State* L, int index) {
 	void* udata = luaL_checkudata(L, index, MODBUS_DEVICE_METATABLE);
@@ -63,8 +74,11 @@ luaL_reg device_methods[] = {
 };
 luaL_reg device_ctx_methods[] = {
 	{"__gc", lua_mbdevicectx_gc},
+	{"connect", lua_mbdevicectx_connect},
+	{"close", lua_mbdevicectx_close},
 	{"read", lua_mbdevicectx_read},
 	{"write", lua_mbdevicectx_write},
+	{"tx", lua_mbdevicectx_tx},
 	{NULL, NULL} /* sentinel */
 };
 
@@ -636,7 +650,8 @@ int lua_mbdevice_new_ctx(lua_State* L) {
 	auto mapping = MappingRegistry::instance().getMapping(mappingPath);
 
 	// Create ModbusDeviceContext instance
-	auto ctx = std::make_shared<ModbusDeviceContext>(ptr, std::move(mapping), device_id);
+	auto ctx = std::make_shared<ModbusDeviceContext>(ptr, std::move(mapping),
+													 device_id);
 
 	// Allocate userdata
 	void* udata =
@@ -759,4 +774,42 @@ int lua_mbdevicectx_write(lua_State* L) {
 	STACK_END(lua_mbdevicectx_write, 0);
 
 	return 0;
+}
+
+int lua_mbdevicectx_tx(lua_State* L) {
+	STACK_START(lua_mbdevicectx_tx, 0);
+
+	auto ctx = getModbusDeviceCtx(L, 1);
+
+	// STACK: ctx, fn
+
+	// Connect
+	ctx->getDevice().connect();
+
+	// Push error function
+	lua_push_error_func(L);
+	const int errFuncIndex = lua_gettop(L);
+
+	// Push the Lua function to call
+	lua_pushvalue(L, 2);
+
+	// Push the context as the first argument
+	lua_pushvalue(L, 1);
+
+	// pcall the function
+	if (lua_pcall(L, 1, 0, errFuncIndex) != 0) {
+		const char* errMsg = lua_tostring(L, -1);
+		fprintf(stderr, "Error in tx function: %s\n", errMsg);
+		lua_pop(L, 1);	// Pop error message
+	}
+
+	// STACK: ctx, errFunc
+	lua_pop(L, 2);	// Pop ctx and errFunc
+
+	// Close the connection
+	ctx->getDevice().close();
+
+	STACK_END(lua_mbdevicectx_tx, 1);
+
+	return 1;
 }

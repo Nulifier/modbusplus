@@ -92,10 +92,12 @@ local ModbusDeviceContext = {}
 
 --- Connects to the Modbus device context.
 --- @return nil
+--- @deprecated
 function ModbusDeviceContext:connect() end
 
 --- Closes the Modbus device context.
 --- @return nil
+--- @deprecated
 function ModbusDeviceContext:close() end
 
 --- Reads the value associated with the given name from the context.
@@ -108,5 +110,11 @@ function ModbusDeviceContext:read(name) end
 --- @param data any Data to write, type depends on the mapping configuration.
 --- @return nil
 function ModbusDeviceContext:write(name, data) end
+
+--- Executes a transaction function within the context.
+--- Automatically handles connection management.
+--- @param fn fun(ctx: ModbusDeviceContext): nil Function to execute within the transaction.
+--- @return nil
+function ModbusDeviceContext:tx(fn) end
 
 return ModbusDevice
