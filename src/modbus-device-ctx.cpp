@@ -169,8 +169,8 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 								(value_raw << 24);
 					break;
 				case Mapping::ValueDefOrder::cdab:
-					value_raw = ((value_raw >> 16) & 0xFFFF) |
-								((value_raw << 16) & 0xFFFF);
+					value_raw = ((value_raw >> 16) & 0x0000FFFF) |
+								((value_raw << 16) & 0xFFFF0000);
 					break;
 				default:
 					throw std::runtime_error(
