@@ -2,6 +2,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <vector>
+#include "value-utils.hpp"
 
 ModbusDeviceContext::ModbusDeviceContext(std::shared_ptr<ModbusDevice> device,
 										 std::shared_ptr<Mapping>&& mapping,
@@ -10,7 +11,7 @@ ModbusDeviceContext::ModbusDeviceContext(std::shared_ptr<ModbusDevice> device,
 	  m_device(std::move(device)),
 	  m_mapping(std::move(mapping)) {}
 
-void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
+void ModbusDeviceContext::luaRead(lua_State* L, const char* name) {
 	// Get mapping
 	const auto& def = m_mapping->getValueDef(name);
 
@@ -45,9 +46,7 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 			uint16_t value = regsBuffer[0];
 
 			// Handle byte order if needed (only ab and ba for 16-bit)
-			if (def.order == Mapping::ValueDefOrder::ba) {
-				value = (value >> 8) | (value << 8);
-			}
+			value = value_utils::map_byte_order(value, def.order);
 
 			int16_t value_s = static_cast<int16_t>(value);
 
@@ -89,30 +88,7 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 							 static_cast<uint32_t>(regsBuffer[1]);
 
 			// Handle byte order if needed
-			switch (def.order) {
-				case Mapping::ValueDefOrder::abcd:
-					// No change needed
-					break;
-				case Mapping::ValueDefOrder::dcba:
-					value = value >> 24 | ((value >> 8) & 0x0000FF00) |
-							((value << 8) & 0x00FF0000) | (value << 24);
-					break;
-				case Mapping::ValueDefOrder::badc:
-					value = ((value >> 8) & 0x0000FF00) |
-							(value << 8) & 0x00FF0000 |
-							(value >> 24) & 0x000000FF |
-							(value << 24) & 0xFF000000;
-					break;
-				case Mapping::ValueDefOrder::cdab:
-					value = ((value >> 16) & 0x0000FFFF) |
-							((value << 16) & 0xFFFF0000);
-					break;
-				default:
-					throw std::runtime_error(
-						"Unsupported byte order for 32-bit in luaRead for "
-						"mapping: " +
-						name);
-			}
+			value = value_utils::map_byte_order(value, def.order);
 
 			int32_t value_s = static_cast<int32_t>(value);
 
@@ -133,15 +109,16 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 				if (it != enumDef.end()) {
 					lua_pushlstring(L, it->second.c_str(), it->second.size());
 				} else {
-					throw std::runtime_error("Enum value not found for value " +
-											 std::to_string(lookupValue) +
-											 " in mapping: " + name);
+					throw std::runtime_error(
+						"Enum value not found for value " +
+						std::to_string(lookupValue) +
+						" in mapping: " + std::string(name));
 				}
 				return;
 			}
 
 			if (def.format == Mapping::ValueDefFormat::i32) {
-				lua_pushinteger(L, static_cast<int32_t>(value));
+				lua_pushinteger(L, value_s);
 			} else {
 				lua_pushinteger(L, value);
 			}
@@ -153,31 +130,7 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 								 static_cast<uint32_t>(regsBuffer[1]);
 
 			// Handle byte order if needed
-			switch (def.order) {
-				case Mapping::ValueDefOrder::abcd:
-					// No change needed
-					break;
-				case Mapping::ValueDefOrder::dcba:
-					value_raw =
-						value_raw >> 24 | ((value_raw >> 8) & 0x0000FF00) |
-						((value_raw << 8) & 0x00FF0000) | (value_raw << 24);
-					break;
-				case Mapping::ValueDefOrder::badc:
-					value_raw = ((value_raw >> 8) & 0x0000FF00) |
-								(value_raw << 8) & 0x00FF0000 |
-								(value_raw >> 24) & 0x0000FFFF |
-								(value_raw << 24);
-					break;
-				case Mapping::ValueDefOrder::cdab:
-					value_raw = ((value_raw >> 16) & 0x0000FFFF) |
-								((value_raw << 16) & 0xFFFF0000);
-					break;
-				default:
-					throw std::runtime_error(
-						"Unsupported byte order for f32 in luaRead for "
-						"mapping: " +
-						name);
-			}
+			value_raw = value_utils::map_byte_order(value_raw, def.order);
 
 			// Convert to float
 			float value;
@@ -200,16 +153,7 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 								 static_cast<uint64_t>(regsBuffer[3]);
 
 			// Handle byte order if needed
-			switch (def.order) {
-				case Mapping::ValueDefOrder::abcdefgh:
-					// No change needed
-					break;
-				default:
-					throw std::runtime_error(
-						"Unsupported byte order for f64 in luaRead for "
-						"mapping: " +
-						name);
-			}
+			value_raw = value_utils::map_byte_order(value_raw, def.order);
 
 			// Handle scale if not 1.0
 			double value;
@@ -239,10 +183,10 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 					break;
 				case Mapping::ValueDefOrder::ba:
 					for (size_t i = 0; i < def.length; ++i) {
-						strValue[i * 2 + 1] =
-							static_cast<char>(regsBuffer[i] >> 8);
 						strValue[i * 2] =
 							static_cast<char>(regsBuffer[i] & 0x00FF);
+						strValue[i * 2 + 1] =
+							static_cast<char>(regsBuffer[i] >> 8);
 					}
 					break;
 				case Mapping::ValueDefOrder::a:
@@ -259,7 +203,7 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 					throw std::runtime_error(
 						"Unsupported byte order for str in luaRead for "
 						"mapping: " +
-						name);
+						std::string(name));
 			}
 
 			// Trim any trailing null characters
@@ -288,11 +232,135 @@ void ModbusDeviceContext::luaRead(lua_State* L, const std::string& name) {
 		}
 		default:
 			throw std::runtime_error(
-				"Unsupported format in luaRead for mapping: " + name);
+				"Unsupported format in luaRead for mapping: " +
+				std::string(name));
 	}
 }
 
 void ModbusDeviceContext::luaWrite(lua_State* L, const char* name) {
-	// Just consume the value for now
-	lua_pop(L, 1);
+	// Get mapping
+	const auto& def = m_mapping->getValueDef(name);
+
+	switch (def.format) {
+		case Mapping::ValueDefFormat::bit:
+			throw std::runtime_error(
+				"Writing single bits is not supported in luaWrite for "
+				"mapping: " +
+				std::string(name));
+		case Mapping::ValueDefFormat::u16:
+		case Mapping::ValueDefFormat::i16: {
+			lua_Integer value = luaL_checkinteger(L, -1);
+
+			// Handle scale if not 1.0
+			if (def.scale != 1.0) {
+				value = static_cast<lua_Integer>(static_cast<double>(value) /
+												 def.scale);
+			}
+
+			// We don't support enums for writing for now
+			if (!def.linked.empty()) {
+				throw std::runtime_error(
+					"Writing enums is not supported in luaWrite for mapping: " +
+					std::string(name));
+			}
+
+			uint16_t rawValue = static_cast<uint16_t>(value);
+
+			// Handle byte order if needed (only ab and ba for 16-bit)
+			rawValue = value_utils::unmap_byte_order(rawValue, def.order);
+
+			// Write single register
+			m_device->writeRegister(def.addr, rawValue);
+			return;
+		}
+		case Mapping::ValueDefFormat::u32:
+		case Mapping::ValueDefFormat::i32: {
+			lua_Integer value = luaL_checkinteger(L, -1);
+
+			// Handle scale if not 1.0
+			if (def.scale != 1.0) {
+				value = static_cast<lua_Integer>(static_cast<double>(value) /
+												 def.scale);
+			}
+
+			// We don't support enums for writing for now
+			if (!def.linked.empty()) {
+				throw std::runtime_error(
+					"Writing enums is not supported in luaWrite for mapping: " +
+					std::string(name));
+			}
+
+			uint32_t rawValue = static_cast<uint32_t>(value);
+
+			// Handle byte order if needed
+			rawValue = value_utils::unmap_byte_order(rawValue, def.order);
+
+			uint16_t regs[2] = {
+				static_cast<uint16_t>((rawValue >> 16) & 0xFFFF),
+				static_cast<uint16_t>(rawValue & 0xFFFF),
+			};
+
+			// Write registers
+			m_device->writeRegisters(def.addr, 2, regs);
+			return;
+		}
+		case Mapping::ValueDefFormat::f32: {
+			lua_Number value = luaL_checknumber(L, -1);
+
+			// Handle scale if not 1.0
+			if (def.scale != 1.0) {
+				value = static_cast<lua_Number>(static_cast<double>(value) /
+												def.scale);
+			}
+
+			// Convert to raw float bits
+			float fvalue = static_cast<float>(value);
+			uint32_t rawValue;
+			memcpy(&rawValue, &fvalue, sizeof(float));
+
+			// Handle byte order if needed
+			rawValue = value_utils::unmap_byte_order(rawValue, def.order);
+
+			uint16_t regs[2] = {
+				static_cast<uint16_t>((rawValue >> 16) & 0xFFFF),
+				static_cast<uint16_t>(rawValue & 0xFFFF),
+			};
+
+			// Write registers
+			m_device->writeRegisters(def.addr, 2, regs);
+			return;
+		}
+		case Mapping::ValueDefFormat::f64: {
+			lua_Number value = luaL_checknumber(L, -1);
+
+			// Handle scale if not 1.0
+			if (def.scale != 1.0) {
+				value = static_cast<lua_Number>(static_cast<double>(value) /
+												def.scale);
+			}
+
+			// Convert to raw double bits
+			double dvalue = static_cast<double>(value);
+			uint64_t rawValue;
+			memcpy(&rawValue, &dvalue, sizeof(double));
+
+			// Handle byte order if needed
+			rawValue = value_utils::unmap_byte_order(rawValue, def.order);
+
+			uint16_t regs[4] = {
+				static_cast<uint16_t>((rawValue >> 48) & 0xFFFF),
+				static_cast<uint16_t>((rawValue >> 32) & 0xFFFF),
+				static_cast<uint16_t>((rawValue >> 16) & 0xFFFF),
+				static_cast<uint16_t>(rawValue & 0xFFFF),
+			};
+
+			// Write registers
+			m_device->writeRegisters(def.addr, 4, regs);
+			return;
+		}
+		default:
+			throw std::runtime_error(
+				"Unsupported format in luaWrite for mapping: " +
+				std::string(name));
+	}
 }

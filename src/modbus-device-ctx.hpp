@@ -5,26 +5,22 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include "modbus-device.hpp"
 #include "mapping.hpp"
+#include "modbus-device.hpp"
 
 class ModbusDeviceContext {
    public:
-	ModbusDeviceContext(
-		std::shared_ptr<ModbusDevice> device,
-		std::shared_ptr<Mapping>&& mapping, int deviceId = -1) noexcept;
+	ModbusDeviceContext(std::shared_ptr<ModbusDevice> device,
+						std::shared_ptr<Mapping>&& mapping,
+						int deviceId = -1) noexcept;
 
-	ModbusDevice& getDevice() const noexcept {
-		return *m_device;
-	}
+	ModbusDevice& getDevice() const noexcept { return *m_device; }
 
 	/**
 	 * Gets the device ID for the context.
 	 * @return The device ID.
 	 */
-	int getDeviceId() const noexcept {
-		return m_deviceId;
-	}
+	int getDeviceId() const noexcept { return m_deviceId; }
 
 	/**
 	 * Pushes the value of the given mapping onto the Lua stack.
@@ -32,7 +28,7 @@ class ModbusDeviceContext {
 	 * @param name The name of the mapping.
 	 * @note The value is pushed onto the stack.
 	 */
-	void luaRead(lua_State* L, const std::string& name);
+	void luaRead(lua_State* L, const char* name);
 
 	/**
 	 * Writes a value from the Lua stack to the given mapping.
